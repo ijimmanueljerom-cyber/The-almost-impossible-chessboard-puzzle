@@ -1,123 +1,151 @@
 import streamlit as st
 import random
 
-# --- 1. CONFIG & REPAIRING CSS ---
+# --- 1. CONFIG & FORCED CSS (FIXES GAPS & OVERFLOW) ---
 st.set_page_config(page_title="The Almost Impossible Chess Board", layout="centered")
 
-# CSS to fix gaps, force squares, and prevent text overflow
 st.markdown("""
 <style>
-    /* GAPLESS GRID SYSTEM */
+    /* Remove gaps between Streamlit columns for a perfect grid */
     [data-testid="stHorizontalBlock"] { gap: 0px !important; }
     
-    /* SQUARE BUTTONS & TEXT OVERFLOW FIX */
+    /* Force square buttons & fix text overflow */
     div.stButton > button {
         width: 100% !important;
         aspect-ratio: 1 / 1 !important;
         border-radius: 0px !important;
         margin: 0px !important;
-        padding: 2px !important;
+        padding: 0px !important;
         font-weight: bold !important;
-        font-size: clamp(10px, 2vw, 16px) !important;
+        font-size: 16px !important;
         border: 0.1px solid rgba(0,0,0,0.1) !important;
-        overflow: hidden !important; /* Prevents text overflow */
-        white-space: nowrap !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
     }
 
-    /* FIXING OVERFLOW FOR ACTION BUTTONS */
-    div.stButton > button[p-id="action-btn"] {
+    /* Fixed height for action buttons to prevent text overflow */
+    .st-action-btn button {
         aspect-ratio: auto !important;
         height: 50px !important;
         width: 100% !important;
-        border-radius: 8px !important;
-        white-space: normal !important; /* Allow wrapping for long labels */
-        padding: 10px !important;
+        border-radius: 5px !important;
+        white-space: normal !important;
     }
 
-    /* AUTHENTIC CHESS COLORS (Matching your Colab Shadows) */
-    .sq-dark button { background-color: #769656 !important; color: white !important; }
-    .sq-light button { background-color: #eeeed2 !important; color: black !important; }
-    .sq-blue button { background-color: #3498db !important; color: white !important; box-shadow: inset 0 0 10px #000 !important; }
-    .sq-gold button { background-color: #f1c40f !important; color: black !important; border: 2px solid orange !important; }
+    /* Matching your Colab Shadow-based Colors */
+    .sq-dark button { box-shadow: inset 0 0 0 50px #769656 !important; color: white !important; }
+    .sq-light button { box-shadow: inset 0 0 0 50px #eeeed2 !important; color: black !important; }
+    .sq-blue button { box-shadow: inset 0 0 0 50px #3498db !important; color: white !important; }
+    .sq-gold button { box-shadow: inset 0 0 0 50px #f1c40f !important; color: black !important; }
 
-    /* LABEL STYLING */
-    .label { font-weight: bold; text-align: center; color: #333; }
+    /* Centered numbering */
+    .row-label { display: flex; align-items: center; justify-content: flex-end; height: 45px; font-weight: bold; padding-right: 10px; color: black; }
+    .col-label { text-align: center; font-weight: bold; width: 45px; height: 20px; line-height: 20px; color: black; }
+    .intro-box { border-left: 5px solid #769656; padding: 20px; background-color: #f3f3f3; margin-bottom: 20px; color: black; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. GAME LOGIC & STATE ---
-if 'board' not in st.session_state:
-    st.session_state.board = [random.randint(0, 1) for _ in range(64)]
-    st.session_state.key = random.randint(0, 63)
-    st.session_state.phase = "PLAYER1"
-    st.session_state.selection = None
+# --- 2. SESSION STATE (The Colab 'Global' Variables) ---
+if 'board_state' not in st.session_state:
+    st.session_state.board_state = [random.randint(0, 1) for _ in range(64)]
+    st.session_state.key_location = random.randint(0, 63)
+    st.session_state.p1_selected_flip = None
+    st.session_state.p2_guess = None
+    st.session_state.game_phase = "INTRO"
 
-def reset_game():
-    st.session_state.board = [random.randint(0, 1) for _ in range(64)]
-    st.session_state.key = random.randint(0, 63)
-    st.session_state.phase = "PLAYER1"
-    st.session_state.selection = None
+def init_game():
+    st.session_state.board_state = [random.randint(0, 1) for _ in range(64)]
+    st.session_state.key_location = random.randint(0, 63)
+    st.session_state.p1_selected_flip = None
+    st.session_state.p2_guess = None
+    st.session_state.game_phase = "PLAYER1"
 
-# --- 3. UI LAYOUT ---
-if st.session_state.phase == "PLAYER1":
-    st.title("Prisoner 1: The Flip")
-    st.write(f"The hidden key is at **Square {st.session_state.key + 1}**")
-    if st.button("Confirm Flip & Call Player 2", key="confirm_p1", help="Select a square first"):
-        if st.session_state.selection is not None:
-            idx = st.session_state.selection
-            st.session_state.board[idx] = 1 - st.session_state.board[idx]
-            st.session_state.phase = "PLAYER2"
-            st.session_state.selection = None
-            st.rerun()
+def on_sq_click(idx):
+    if st.session_state.game_phase == "PLAYER1":
+        st.session_state.p1_selected_flip = idx
+    elif st.session_state.game_phase == "PLAYER2":
+        st.session_state.p2_guess = idx
 
-elif st.session_state.phase == "PLAYER2":
-    st.title("Prisoner 2: The Guess")
-    if st.button("Confirm Guess", key="confirm_p2"):
-        if st.session_state.selection is not None:
-            st.session_state.phase = "RESULT"
-            st.rerun()
-
-elif st.session_state.phase == "RESULT":
-    if st.session_state.selection == st.session_state.key:
-        st.success(f"VICTORY! You found the key at Square {st.session_state.key + 1}!")
-    else:
-        st.error(f"FAILURE! Key was at {st.session_state.key + 1}, you guessed {st.session_state.selection + 1}")
-    if st.button("Restart Game"):
-        reset_game()
+# --- 3. UI ASSEMBLY ---
+if st.session_state.game_phase == "INTRO":
+    st.markdown("""
+    <div class="intro-box">
+        <h1>The Almost Impossible Chess Board Puzzle</h1>
+        <p><b>The Scenario:</b> Two prisoners can win their freedom if they can locate a hidden key.</p>
+        <p><b>1. Player 1:</b> Enters the room and sees a board of coins and the key's location. They <u>must</u> flip exactly one coin.</p>
+        <p><b>2. Player 2:</b> Enters the room after. They only see the coins. They must point to the secret square.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Start Game", type="primary", use_container_width=True):
+        init_game()
         st.rerun()
 
-# --- 4. THE CHESSBOARD GRID ---
-# Create 8 columns with a small leading column for row numbers
-grid_cols = st.columns([0.5] + [1] * 8)
+else:
+    # Phase Headers
+    if st.session_state.game_phase == "PLAYER1":
+        st.header("Player 1's Turn")
+        st.write(f"The key is hidden at: **Square {st.session_state.key_location + 1}**")
+        st.write("Choose one square to flip (it will turn blue), then confirm.")
+    elif st.session_state.game_phase == "PLAYER2":
+        st.header("Player 2's Turn")
+        st.write("The key's location is secret. Identify the square and confirm.")
+    elif st.session_state.game_phase == "RESULT":
+        if st.session_state.p2_guess == st.session_state.key_location:
+            st.markdown("<h2 style='color:green;'>Victory!</h2>", unsafe_allow_html=True)
+            st.success(f"Success! Player 2 found the key at Square {st.session_state.key_location + 1}.")
+        else:
+            st.markdown("<h2 style='color:red;'>Game Over</h2>", unsafe_allow_html=True)
+            st.error(f"Selection: {st.session_state.p2_guess + 1} | Actual Location: {st.session_state.key_location + 1}.")
 
-# Header Row (Column numbers)
-for i in range(8):
-    grid_cols[i+1].markdown(f"<p class='label'>{i+1}</p>", unsafe_allow_html=True)
+    # --- ACTION BUTTONS (State Control) ---
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="st-action-btn">', unsafe_allow_html=True)
+        if st.session_state.game_phase == "PLAYER1":
+            if st.button("Confirm Flip & Call Player 2"):
+                if st.session_state.p1_selected_flip is not None:
+                    idx = st.session_state.p1_selected_flip
+                    st.session_state.board_state[idx] = 1 - st.session_state.board_state[idx]
+                    st.session_state.game_phase = "PLAYER2"
+                    st.rerun()
+        elif st.session_state.game_phase == "PLAYER2":
+            if st.button("Confirm Guess"):
+                if st.session_state.p2_guess is not None:
+                    st.session_state.game_phase = "RESULT"
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="st-action-btn">', unsafe_allow_html=True)
+        if st.button("Restart Game"):
+            init_game()
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# 8x8 Grid
-for r in range(8):
-    row_cols = st.columns([0.5] + [1] * 8)
-    row_cols[0].markdown(f"<p class='label' style='line-height:45px;'>{r*8+1}</p>", unsafe_allow_html=True)
-    
+    # --- THE CHESS BOARD ---
+    # Column labels
+    grid_header = st.columns([0.7] + [1]*8)
     for c in range(8):
-        idx = r * 8 + c
-        coin = "H" if st.session_state.board[idx] == 1 else "T"
-        
-        # Determine CSS Class for current tile
-        is_dark = (r + c) % 2 == 1
-        tile_style = "sq-dark" if is_dark else "sq-light"
-        
-        if st.session_state.selection == idx:
-            tile_style = "sq-blue"
-        if st.session_state.phase == "RESULT" and idx == st.session_state.key:
-            tile_style = "sq-gold"
+        grid_header[c+1].markdown(f"<div class='col-label'>{c+1}</div>", unsafe_allow_html=True)
 
-        with row_cols[c+1]:
-            st.markdown(f'<div class="{tile_style}">', unsafe_allow_html=True)
-            if st.button(coin, key=f"btn_{idx}"):
-                st.session_state.selection = idx
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+    row_labels = ["1", "9", "17", "25", "33", "41", "49", "57"]
+    for r in range(8):
+        row_cols = st.columns([0.7] + [1]*8)
+        row_cols[0].markdown(f"<div class='row-label'>{row_labels[r]}</div>", unsafe_allow_html=True)
+        
+        for c in range(8):
+            i = r * 8 + c
+            coin = "H" if st.session_state.board_state[i] == 1 else "T"
+            
+            # CSS Selection Logic
+            if (st.session_state.game_phase == "RESULT" and i == st.session_state.key_location):
+                sq_class = "sq-gold"
+            elif (st.session_state.game_phase == "PLAYER1" and i == st.session_state.p1_selected_flip):
+                sq_class = "sq-blue"
+            elif (st.session_state.game_phase == "PLAYER2" and i == st.session_state.p2_guess):
+                sq_class = "sq-blue"
+            else:
+                sq_class = "sq-dark" if (r + c) % 2 == 1 else "sq-light"
+
+            with row_cols[c+1]:
+                st.markdown(f'<div class="{sq_class}">', unsafe_allow_html=True)
+                # Using a callback for state changes
+                st.button(coin, key=f"sq_{i}", on_click=on_sq_click, args=(i,))
+                st.markdown('</div>', unsafe_allow_html=True)
